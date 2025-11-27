@@ -52,8 +52,8 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 code TEXT NOT NULL UNIQUE,
                 discount_percent REAL NOT NULL,
-                start_date DATE,
-                end_date DATE,
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
                 usage_limit INTEGER,
                 times_used INTEGER DEFAULT 0
             )
@@ -77,10 +77,16 @@ def init_db():
         # Add sample promo codes if table is empty
         cursor.execute('SELECT COUNT(*) FROM PromoCode')
         if cursor.fetchone()[0] == 0:
+            from datetime import date, timedelta
+            today = date.today()
+            end_date = today + timedelta(days=365)
+            
             cursor.execute('INSERT INTO PromoCode (code, discount_percent, start_date, end_date, usage_limit) VALUES (?, ?, ?, ?, ?)',
-                         ('WELCOME10', 10.0, None, None, None))
+                         ('WELCOME10', 10.0, today.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), None))
             cursor.execute('INSERT INTO PromoCode (code, discount_percent, start_date, end_date, usage_limit) VALUES (?, ?, ?, ?, ?)',
-                         ('MIDWEEK15', 15.0, None, None, 200))
+                         ('MIDWEEK15', 15.0, today.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), 200))
+            cursor.execute('INSERT INTO PromoCode (code, discount_percent, start_date, end_date, usage_limit) VALUES (?, ?, ?, ?, ?)',
+                         ('FAMILY20', 20.0, today.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), 150))
             conn.commit()
     except Exception as e:
         print(f"Error initializing database: {e}")
@@ -154,9 +160,10 @@ def apply_promo_code(code, total):
         
         # Check date validity
         today = datetime.now().date()
-        if start_date and today < datetime.strptime(start_date, '%Y-%m-%d').date():
+        today_str = today.strftime('%Y-%m-%d')
+        if start_date and today_str < start_date:
             return 0
-        if end_date and today > datetime.strptime(end_date, '%Y-%m-%d').date():
+        if end_date and today_str > end_date:
             return 0
         
         # Check usage limit
