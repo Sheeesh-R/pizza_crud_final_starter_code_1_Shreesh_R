@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Order Confirmed</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
   <div class="header">
-    <img src="{{ url_for('static', filename='images/CRUD_Pizza_logo.jpg') }}" alt="CRUD Pizza Logo" class="logo">
+    <img src="{{ url_for('static', filename='images/Final.png') }}" alt="Pizza" class="logo">
   </div>
   <div class="container">
-    <h1>Thank you!</h1>
+    <h1>Thank you, {{ order.customer_name }}!</h1>
     <p>Your order has been placed and is being prepared.</p>
 
     <div class="order-details">
@@ -43,7 +43,7 @@
       </div>
     </div>
 
-    <a href="#" class="back-link">Back to Menu</a>
+    <a href="{{ url_for('menu') }}" class="button">Back to Menu</a>
   </div>
 </body>
 </html>

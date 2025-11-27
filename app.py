@@ -40,6 +40,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 pizza_id INTEGER,
                 quantity INTEGER NOT NULL,
+                customer_name TEXT,
                 order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (pizza_id) REFERENCES Pizza (id)
             )
@@ -50,7 +51,7 @@ def init_db():
         if cursor.fetchone()[0] == 0:
             sample_pizzas = [
                 ('Margherita', 14.99),
-                ('Pepperoni', 1.99),
+                ('Pepperoni', 13.99),
                 ('Hawaiian', 99.99),
                 ('Vegetarian', 12.99),
                 ('Supreme', 14.99),
@@ -79,15 +80,15 @@ def get_all_pizzas():
     finally:
         conn.close()
 
-def save_order(pizza_id, quantity):
+def save_order(pizza_id, quantity, customer_name):
     """Save order to database and return order ID"""
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cursor.execute(
-            'INSERT INTO "Order" (pizza_id, quantity, order_date) VALUES (?, ?, ?)',
-            (pizza_id, quantity, current_time)
+            'INSERT INTO "Order" (pizza_id, quantity, customer_name, order_date) VALUES (?, ?, ?, ?)',
+            (pizza_id, quantity, customer_name, current_time)
         )
         order_id = cursor.lastrowid
         conn.commit()
@@ -101,7 +102,7 @@ def get_order_details(order_id):
     try:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT o.id, p.name, p.price, o.quantity
+            SELECT o.id, p.name, p.price, o.quantity, o.customer_name
             FROM "Order" o
             JOIN Pizza p ON o.pizza_id = p.id
             WHERE o.id = ?
@@ -122,11 +123,12 @@ def create_order():
     """Process the pizza order"""
     pizza_id = request.form.get('pizza_id')
     quantity = request.form.get('quantity')
+    customer_name = request.form.get('customer_name')
     
-    if not pizza_id or not quantity:
+    if not pizza_id or not quantity or not customer_name:
         return redirect(url_for('menu'))
         
-    order_id = save_order(pizza_id, quantity)
+    order_id = save_order(pizza_id, quantity, customer_name)
     return redirect(url_for('confirmation', order_id=order_id))
 
 @app.route('/confirmation')
@@ -145,6 +147,7 @@ def confirmation():
         'pizza_name': order[1],
         'price': order[2],
         'quantity': order[3],
+        'customer_name': order[4],
         'total': order[2] * order[3]
     }
     
