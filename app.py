@@ -46,6 +46,19 @@ def init_db():
             )
         ''')
         
+        # Create PromoCode table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS PromoCode (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT NOT NULL UNIQUE,
+                discount_percent REAL NOT NULL,
+                start_date DATE,
+                end_date DATE,
+                usage_limit INTEGER,
+                times_used INTEGER DEFAULT 0
+            )
+        ''')
+        
         # Add sample pizzas if table is empty
         cursor.execute('SELECT COUNT(*) FROM Pizza')
         if cursor.fetchone()[0] == 0:
@@ -60,6 +73,14 @@ def init_db():
                 ('Buffalo', 16.99)
             ]
             cursor.executemany('INSERT INTO Pizza (name, price) VALUES (?, ?)', sample_pizzas)
+        
+        # Add sample promo codes if table is empty
+        cursor.execute('SELECT COUNT(*) FROM PromoCode')
+        if cursor.fetchone()[0] == 0:
+            cursor.execute('INSERT INTO PromoCode (code, discount_percent, start_date, end_date, usage_limit) VALUES (?, ?, ?, ?, ?)',
+                         ('WELCOME10', 10.0, None, None, None))
+            cursor.execute('INSERT INTO PromoCode (code, discount_percent, start_date, end_date, usage_limit) VALUES (?, ?, ?, ?, ?)',
+                         ('MIDWEEK15', 15.0, None, None, 200))
             conn.commit()
     except Exception as e:
         print(f"Error initializing database: {e}")
@@ -111,6 +132,52 @@ def get_order_details(order_id):
     finally:
         conn.close()
 
+def apply_promo_code(code, total):
+    """Apply promo code discount if valid"""
+    if not code:
+        return 0
+    
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT discount_percent, start_date, end_date, usage_limit, times_used
+            FROM PromoCode 
+            WHERE code = ?
+        ''', (code.upper(),))
+        promo = cursor.fetchone()
+        
+        if not promo:
+            return 0
+        
+        discount_percent, start_date, end_date, usage_limit, times_used = promo
+        
+        # Check date validity
+        today = datetime.now().date()
+        if start_date and today < datetime.strptime(start_date, '%Y-%m-%d').date():
+            return 0
+        if end_date and today > datetime.strptime(end_date, '%Y-%m-%d').date():
+            return 0
+        
+        # Check usage limit
+        if usage_limit and times_used >= usage_limit:
+            return 0
+        
+        # Calculate discount
+        discount = total * (discount_percent / 100)
+        
+        # Update usage count
+        cursor.execute('''
+            UPDATE PromoCode 
+            SET times_used = times_used + 1 
+            WHERE code = ?
+        ''', (code.upper(),))
+        conn.commit()
+        
+        return discount
+    finally:
+        conn.close()
+
 # Routes
 @app.route('/')
 def menu():
@@ -124,24 +191,32 @@ def create_order():
     pizza_id = request.form.get('pizza_id')
     quantity = request.form.get('quantity')
     customer_name = request.form.get('customer_name')
+    promo_code = request.form.get('promo_code')
     
     if not pizza_id or not quantity or not customer_name:
         return redirect(url_for('menu'))
         
     order_id = save_order(pizza_id, quantity, customer_name)
-    return redirect(url_for('confirmation', order_id=order_id))
+    return redirect(url_for('confirmation', order_id=order_id, promo_code=promo_code))
 
 @app.route('/confirmation')
 def confirmation():
     """Show order confirmation"""
     order_id = request.args.get('order_id')
+    promo_code = request.args.get('promo_code')
     if not order_id:
         return redirect(url_for('menu'))
         
     order = get_order_details(order_id)
     if not order:
         return redirect(url_for('menu'))
-        
+    
+    total = order[2] * order[3]
+    discount_amount = 0
+    
+    if promo_code:
+        discount_amount = apply_promo_code(promo_code, total)
+    
     order_data = {
         'order_id': order[0],
         'pizza_name': order[1],
@@ -149,7 +224,9 @@ def confirmation():
         'quantity': order[3],
         'customer_name': order[4],
         'order_date': datetime.strptime(order[5], '%Y-%m-%dT%H:%M:%S.%f').strftime('%Y-%m-%dT%H:%M:%S.%f') if 'T' in order[5] else datetime.strptime(order[5], '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%dT%H:%M:%S.000000'),
-        'total': order[2] * order[3]
+        'total': total,
+        'discount_amount': discount_amount,
+        'final_total': total - discount_amount
     }
     
     return render_template('confirmation.html', 

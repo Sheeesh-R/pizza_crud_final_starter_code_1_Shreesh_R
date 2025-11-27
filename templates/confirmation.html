@@ -40,6 +40,10 @@
 
       <div class="order-total">
         <p><strong>Total:</strong> ${{ '%.2f' % order.total }}</p>
+        {% if order.discount_amount %}
+        <p><strong>Discount:</strong> -${{ '%.2f' % order.discount_amount }}</p>
+        <p><strong>Discounted Total:</strong> ${{ '%.2f' % order.final_total }}</p>
+        {% endif %}
       </div>
     </div>
 
