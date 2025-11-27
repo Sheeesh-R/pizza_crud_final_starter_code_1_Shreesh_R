@@ -85,7 +85,7 @@ def save_order(pizza_id, quantity, customer_name):
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        current_time = datetime.now().strftime('%Y-%m-%dT%H:%M:%S.%f')  # Include microseconds (6 digits) with T separator
         cursor.execute(
             'INSERT INTO "Order" (pizza_id, quantity, customer_name, order_date) VALUES (?, ?, ?, ?)',
             (pizza_id, quantity, customer_name, current_time)
@@ -102,7 +102,7 @@ def get_order_details(order_id):
     try:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT o.id, p.name, p.price, o.quantity, o.customer_name
+            SELECT o.id, p.name, p.price, o.quantity, o.customer_name, o.order_date
             FROM "Order" o
             JOIN Pizza p ON o.pizza_id = p.id
             WHERE o.id = ?
@@ -148,6 +148,7 @@ def confirmation():
         'price': order[2],
         'quantity': order[3],
         'customer_name': order[4],
+        'order_date': datetime.strptime(order[5], '%Y-%m-%dT%H:%M:%S.%f').strftime('%Y-%m-%dT%H:%M:%S.%f') if 'T' in order[5] else datetime.strptime(order[5], '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%dT%H:%M:%S.000000'),
         'total': order[2] * order[3]
     }
     
